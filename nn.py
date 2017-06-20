@@ -10,7 +10,7 @@ class NN(object):
 
         self.x = tf.placeholder(tf.float32, shape=[batch_size, x_dim], name='x')
 
-        self.im_expert = tf.placeholder(tf.float32, shape=[batch_size, im_dim[0], im_dim[1], 1], name='x')
+        self.im_expert = tf.placeholder(tf.float32, shape=[batch_size, im_dim[0], im_dim[1], 1], name='im_expert')
 
         self.x_dim = x_dim
 
@@ -30,28 +30,39 @@ class NN(object):
 
             h = tf.matmul(x, weights)
             return tf.nn.bias_add(h, bias)
+    #
+    # def _conv(self, name, x, filter_size, in_filters, out_filters):
+    #     """Convolution."""
+    #     with tf.variable_scope(name):
+    #         n = filter_size * filter_size * out_filters
+    #         kernel = tf.get_variable(name + '_weight', [filter_size, filter_size, in_filters, out_filters], tf.float32,
+    #                                  initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
+    #
+    #         bias = tf.get_variable(name + '_bias', [out_filters], tf.float32,
+    #                                initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
+    #
+    #         h = tf.nn.conv2d(x, kernel, [1, 1, 1, 1], padding='SAME', data_format='NHWC')
+    #         return tf.nn.bias_add(h, bias, data_format='NHWC')
+    #
+    # def _conv_pool_relu(self, name, x, filter_size, in_filters, out_filters, pool_kernel, pool_stride, relu=True):
+    #     x = self._conv(name + '_conv', x, filter_size, in_filters, out_filters)
+    #     # if pool_kernel is not None:
+    #     #     x = tf.nn.max_pool(x, [1, pool_kernel, pool_kernel, 1], [1, pool_stride, pool_stride, 1],
+    #     #                        padding='SAME', data_format='NHWC', name=name + '_maxpool')
+    #     if relu is True:
+    #         x = tf.nn.relu(x)
+    #     return x
 
-    def _conv(self, name, x, filter_size, in_filters, out_filters):
-        """Convolution."""
+    def conv2d(self, input_, output_dim, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02, name="conv2d"):
         with tf.variable_scope(name):
-            n = filter_size * filter_size * out_filters
-            kernel = tf.get_variable(name + '_weight', [filter_size, filter_size, in_filters, out_filters], tf.float32,
-                                     initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
+            w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim],
+                                initializer=tf.truncated_normal_initializer(stddev=stddev))
+            conv = tf.nn.conv2d(input_, w, strides=[1, d_h, d_w, 1], padding='SAME')
 
-            bias = tf.get_variable(name + '_bias', [out_filters], tf.float32,
-                                   initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
+            biases = tf.get_variable('biases', [output_dim], initializer=tf.constant_initializer(0.0))
+            conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 
-            h = tf.nn.conv2d(x, kernel, [1, 1, 1, 1], padding='SAME', data_format='NHWC')
-            return tf.nn.bias_add(h, bias, data_format='NHWC')
-
-    def _conv_pool_relu(self, name, x, filter_size, in_filters, out_filters, pool_kernel, pool_stride, relu=True):
-        x = self._conv(name + '_conv', x, filter_size, in_filters, out_filters)
-        if pool_kernel is not None:
-            x = tf.nn.max_pool(x, [1, pool_kernel, pool_kernel, 1], [1, pool_stride, pool_stride, 1],
-                               padding='SAME', data_format='NHWC', name=name + '_maxpool')
-        if relu is True:
-            x = tf.nn.relu(x)
-        return x
+            return conv
 
     def _conv_transpose(self, name, x, filter_size, in_filters, out_filters):
         n = filter_size * filter_size * in_filters
@@ -87,21 +98,22 @@ class NN(object):
 
             x = self.x
 
-            x = self._affine(name='affine1', x=x, in_filters=self.x_dim, out_filters=100)
+            x = self._affine(name='affine1', x=x, in_filters=self.x_dim, out_filters=4*4*1024)
 
-            x = tf.contrib.layers.batch_norm(x, scale=True)
+            # x = tf.contrib.layers.batch_norm(x, scale=True)
 
-            x = tf.nn.relu(x)
+            # x = tf.nn.relu(x)
 
-            x = self._affine(name='affine2', x=x, in_filters=100, out_filters=256)
+            # x = self._affine(name='affine2', x=x, in_filters=100, out_filters=256)
+            #
+            #
+            # x = tf.contrib.layers.batch_norm(x, scale=True)
 
-            x = tf.contrib.layers.batch_norm(x, scale=True)
+            # x = tf.nn.relu(x)
 
-            x = tf.nn.relu(x)
+            # x = self._affine(name='affine3', x=x, in_filters=256, out_filters=4*4*1024)
 
-            x = self._affine(name='affine3', x=x, in_filters=256, out_filters=4*4*1024)
-
-            x = tf.contrib.layers.batch_norm(x, scale=True)
+            # x = tf.contrib.layers.batch_norm(x, scale=True)
 
             x = tf.reshape(x, [self.batch_size, 4, 4, 1024])
 
@@ -117,13 +129,15 @@ class NN(object):
 
             x = tf.nn.relu(x)
 
-            x = self._conv_transpose(name='deconv3', x=x, filter_size=3, in_filters=256, out_filters=64)
+            x = self._conv_transpose(name='deconv3', x=x, filter_size=3, in_filters=256, out_filters=1)
 
-            x = tf.contrib.layers.batch_norm(x, scale=True)
+            # x = tf.contrib.layers.batch_norm(x, scale=True)
+            #
+            # debug_x = x
+            #
+            # x = self._conv_transpose(name='deconv4', x=x, filter_size=3, in_filters=64, out_filters=1)
 
-            x = tf.nn.relu(x)
-
-            im = self._conv_transpose(name='deconv4', x=x, filter_size=3, in_filters=64, out_filters=1)
+            im = tf.nn.tanh(x)
 
             return im
 
@@ -133,19 +147,21 @@ class NN(object):
             if reuse:
                 scope.reuse_variables()
 
-            x = self._conv_pool_relu(name='conv1', x=im, filter_size=3, in_filters=1, out_filters=16, pool_kernel=2, pool_stride=2)
+            # x = self._conv_pool_relu(name='conv1', x=im, filter_size=3, in_filters=1, out_filters=16, pool_kernel=2, pool_stride=2)
+            x = self.conv2d(im, 16, name='conv1')
 
             x = tf.contrib.layers.batch_norm(x, scale=True)
 
-            x = self._conv_pool_relu(name='conv2', x=x, filter_size=3, in_filters=16, out_filters=64, pool_kernel=2, pool_stride=2)
+            # x = self._conv_pool_relu(name='conv2', x=x, filter_size=3, in_filters=16, out_filters=64, pool_kernel=2, pool_stride=2)
+            x = self.conv2d(im, 64, name='conv2')
 
             x = tf.contrib.layers.batch_norm(x, scale=True)
 
-            x = self._conv_pool_relu(name='conv3', x=x, filter_size=3, in_filters=64, out_filters=256, pool_kernel=2, pool_stride=2)
-
-            x = tf.contrib.layers.batch_norm(x, scale=True)
-
-            x = self._conv_pool_relu(name='conv4', x=x, filter_size=3, in_filters=256, out_filters=512, pool_kernel=2, pool_stride=2)
+            # x = self._conv_pool_relu(name='conv3', x=x, filter_size=3, in_filters=64, out_filters=256, pool_kernel=2, pool_stride=2)
+            #
+            # x = tf.contrib.layers.batch_norm(x, scale=True)
+            #
+            # x = self._conv_pool_relu(name='conv4', x=x, filter_size=3, in_filters=256, out_filters=512, pool_kernel=2, pool_stride=2)
 
             x = tf.reshape(x, [self.batch_size, -1])
 
@@ -167,19 +183,22 @@ class NN(object):
             if reuse:
                 scope.reuse_variables()
 
-            d = self._conv_pool_relu(name='conv1', x=im, filter_size=3, in_filters=1, out_filters=16, pool_kernel=2, pool_stride=2)
+            # d = self._conv_pool_relu(name='conv1', x=im, filter_size=3, in_filters=1, out_filters=16, pool_kernel=2, pool_stride=2)
+            d = self.conv2d(im, 16, name='conv1')
 
             d = tf.contrib.layers.batch_norm(d, scale=True)
 
-            d = self._conv_pool_relu(name='conv2', x=d, filter_size=3, in_filters=16, out_filters=64, pool_kernel=2, pool_stride=2)
+            # d = self._conv_pool_relu(name='conv2', x=d, filter_size=3, in_filters=16, out_filters=64, pool_kernel=2, pool_stride=2)
+            d = self.conv2d(d, 64, name='conv2')
 
             d = tf.contrib.layers.batch_norm(d, scale=True)
 
-            d = self._conv_pool_relu(name='conv3', x=d, filter_size=3, in_filters=64, out_filters=256, pool_kernel=2, pool_stride=2)
+            # d = self._conv_pool_relu(name='conv3', x=d, filter_size=3, in_filters=64, out_filters=256, pool_kernel=2, pool_stride=2)
+            d = self.conv2d(d, 128, name='conv3')
 
-            d = tf.contrib.layers.batch_norm(d, scale=True)
-
-            d = self._conv_pool_relu(name='conv4', x=d, filter_size=3, in_filters=256, out_filters=512, pool_kernel=2, pool_stride=2)
+            # d = tf.contrib.layers.batch_norm(d, scale=True)
+            #
+            # d = self._conv_pool_relu(name='conv4', x=d, filter_size=3, in_filters=256, out_filters=512, pool_kernel=2, pool_stride=2)
 
             d = tf.reshape(d, [self.batch_size, -1])
 
@@ -206,12 +225,12 @@ class NN(object):
         # compute the gradients for a list of variables
         grads_and_vars = opt.compute_gradients(loss=loss, var_list=train_vars)
 
-        # g_norm, w_norm = utils.compute_mean_abs_norm(grads_and_vars)
+        g_norm, w_norm = utils.compute_mean_abs_norm(grads_and_vars)
 
         # apply the gradient
         apply_grads = opt.apply_gradients(grads_and_vars)
 
-        return apply_grads
+        return apply_grads, g_norm, w_norm
 
     def train_discriminator(self):
 
@@ -233,7 +252,9 @@ class NN(object):
 
     def train_generator(self):
 
-        im_fake = self.generator(reuse=True)
+        im_fake= self.generator(reuse=True)
+
+        # loss = tf.reduce_mean(tf.square(self.im_expert - im_fake))
 
         d_g = self.discriminator(im_fake, reuse=True)
 
@@ -249,9 +270,9 @@ class NN(object):
 
         # loss += self._decay("decoder")
 
-        loss += self._decay("generator")
+        # loss += self._decay("generator")
 
-        return loss, self.backward(loss, ["generator", "decoder"]), im_fake
+        return loss, self.backward(loss, ["generator"]), im_fake
 
     # def train_decoder(self):
     #
