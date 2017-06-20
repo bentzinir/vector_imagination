@@ -8,6 +8,8 @@ def compute_mean_abs_norm(grads_and_vars):
 
     for g, w in grads_and_vars:
         # print w.name
+        # if g is None:
+        #     g = 0
         tot_grad += tf.reduce_mean(tf.abs(g))
         tot_w += tf.reduce_mean(tf.abs(w))
 

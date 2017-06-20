@@ -4,6 +4,7 @@ import sys
 import matplotlib.pyplot as plt
 import scipy.misc
 
+
 class MovingBox(object):
 
     def __init__(self, radius, low_size, high_size):
@@ -12,7 +13,7 @@ class MovingBox(object):
 
         self.low_size = low_size
 
-        self.vector_dim = 100
+        self.vector_dim = 2
 
         self.high_size = high_size
 
@@ -30,11 +31,11 @@ class MovingBox(object):
 
     def update_figure(self, x, x_recon, expert_im):
         self.x_obj.set_data(x)
-        self.x_obj.set_clim(vmin=x.min(), vmax=x.max())
+        self.x_obj.set_clim(vmin=0., vmax=1.)
         self.x_recon_obj.set_data(x_recon)
-        self.x_recon_obj.set_clim(vmin=x_recon.min(), vmax=x_recon.max())
+        self.x_recon_obj.set_clim(vmin=0., vmax=1.)
         self.expert_im_obj.set_data(np.squeeze(expert_im))
-        self.expert_im_obj.set_clim(vmin=expert_im.min(), vmax=expert_im.max())
+        self.expert_im_obj.set_clim(vmin=0., vmax=1.)
         plt.draw()
 
     def print_info_line(self, itr, attr_list):
@@ -80,7 +81,8 @@ class MovingBox(object):
 
             pos_expert = np.random.uniform(low=-1, high=1, size=2)
             im_expert = scipy.misc.imresize(self.render_image(pos_expert, self.r), [self.high_size, self.high_size], interp='nearest')/ 255.
-            # im_expert = self.expert_im
+
+            # im_expert = np.ones_like(im_expert)
 
             im_high.append(np.expand_dims(im_expert, -1))
         return im_low, positions, im_high
