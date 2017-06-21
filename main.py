@@ -1,16 +1,20 @@
 import tensorflow as tf
 from nn import NN
+import numpy as np
+import numpy.matlib
 from moving_box import MovingBox
+import time
 
 batch_size = 24
 lr = 0.0002
 beta1 = 0.5
 tv_weight = 0.05
 layer_widths = [750, 450, 350]
-saved_model = None
-train_mode = True
+saved_model = '/home/nir/work/git/vector_imagination/snapshots/2017-06-21-13-14-000000.sn'
+train_mode = False
 n_train_iters = 100000
 diaplay_interval = 100
+save_interval = 100
 state_coord = 1
 
 env = MovingBox(low_size=12, high_size=32, radius=3)
@@ -38,35 +42,40 @@ else:
     saver.restore(sess, saved_model)
 
 for i in xrange(n_train_iters):
+
     if train_mode:
-
-        # train generator
-        for _ in xrange(2):
-            im_low, positions, im_high = env.create_batch(batch_size)
-            run_vals_g = sess.run(fetches=[apply_grads_g, loss_g, im_fake, grad_norm_g],
-                                feed_dict={conv_ae.x: positions, conv_ae.im_expert: im_high})
-
         for _ in xrange(1):
             # train discriminator
-            im_low, positions, im_high = env.create_batch(batch_size)
+            _, positions, im_high = env.create_batch(batch_size)
             run_vals_d = sess.run(fetches=[apply_grads_d, loss_d, grad_norm_d],
-                                feed_dict={conv_ae.x: positions, conv_ae.im_expert: im_high })
+                                  feed_dict={conv_ae.x: positions, conv_ae.im_expert: im_high})
 
-        for _ in xrange(1):
+        for _ in xrange(2):
             # train autoencoder
-            im_low, positions, im_high = env.create_batch(batch_size)
+            _, positions, im_high = env.create_batch(batch_size)
             run_vals_ae = sess.run(fetches=[apply_grads_ae, loss_ae],
-                                feed_dict={conv_ae.x: positions, conv_ae.im_expert: im_high})
+                                   feed_dict={conv_ae.x: positions, conv_ae.im_expert: im_high})
+
+        for _ in xrange(2):
+            # train_generator
+            im_low, positions, im_high = env.create_batch(batch_size)
+            run_vals_g = sess.run(fetches=[im_fake, apply_grads_g, loss_g, grad_norm_g],
+                                  feed_dict={conv_ae.x: positions})
 
         if i % diaplay_interval == 0:
-            sample_low_im = im_low[0]
-            x_recon_sample = run_vals_g[2][0, :, :, 0]
-            sample_high_im = im_high[0][:, :, 0]
-
-            env.update_stats({'loss_d': run_vals_d[1], 'loss_g': run_vals_g[1], 'loss_ae': run_vals_ae[1], 'grads_g': run_vals_g[3], 'grads_d': run_vals_d[2]})
+            env.update_figure(im_low[0], run_vals_g[0][0], im_high[0])
+            env.update_stats({'loss_d': run_vals_d[1], 'loss_g': run_vals_g[2], 'loss_ae': run_vals_ae[1],
+                              'grads_g': run_vals_g[3], 'grads_d': run_vals_d[2]})
             env.print_info_line(i, ['loss_d', 'grads_d', 'loss_g', 'grads_g', 'loss_ae'])
+            fname = 'snapshots/' + time.strftime("%Y-%m-%d-%H-%M-") + ('%0.6d.sn' % i)
+            saver.save(sess, fname)
 
-            # env.update_stats({'loss_d': run_vals_d[1], 'loss_g': run_vals_g[1], 'grads_d': run_vals_d[2]})
-            # env.print_info_line(i, ['loss_d', 'grads_d', 'loss_g'])
-
-            env.update_figure(sample_low_im, x_recon_sample, sample_high_im)
+    else:  # test
+        im_low, positions, im_high = env.create_batch(batch_size)
+        for row in xrange(12):
+            for col in xrange(12):
+                positions[0] = [row, col]
+                im_low[0] = env.render_image(positions[0], env.r)
+                x_fake = sess.run(fetches=[im_fake], feed_dict={conv_ae.x: positions})[0]
+                env.update_figure(im_low[0], x_fake[0], im_high[0])
+                time.sleep(0.1)

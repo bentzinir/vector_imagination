@@ -302,7 +302,7 @@ class NN(object):
 
         loss = d_loss_real + d_loss_fake
 
-        loss += self._decay("discriminator")
+        # loss += self._decay("discriminator")
 
         apply_grads, grad_norm, _, _ = self.backward(loss, ["discriminator"])
 
