@@ -17,7 +17,8 @@ class MovingBox(object):
 
         self.vector_dim = 2+1
 
-        self.render_image = self.render_gauss_image
+        # self.render_image = self.render_gauss_image
+        self.render_image = self.render_square_image
 
         self.averaging_factor = 0.5
 
@@ -41,7 +42,7 @@ class MovingBox(object):
         self.update_obj(self.x_im_fake_obj, x_fake)
         self.update_obj(self.expert_im_obj, x_expert)
         plt.draw()
-        plt.pause(0.5)
+        plt.pause(0.01)
 
     def print_info_line(self, itr, attr_list):
         np.set_printoptions(precision=3)

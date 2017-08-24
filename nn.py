@@ -18,18 +18,9 @@ class NN(object):
 
         self.x_dim = x_dim
 
-        # self.d_bn1 = utils.batch_norm(name='d_bn1')
-        # self.d_bn2 = utils.batch_norm(name='d_bn2')
-        # self.d_bn3 = utils.batch_norm(name='d_bn3')
-        #
-        # self.de_bn1 = utils.batch_norm(name='de_bn1')
-        # self.de_bn2 = utils.batch_norm(name='de_bn2')
-        # self.de_bn3 = utils.batch_norm(name='de_bn3')
-        #
-        # self.g_bn0 = utils.batch_norm(name='g_bn0')
-        # self.g_bn1 = utils.batch_norm(name='g_bn1')
-        # self.g_bn2 = utils.batch_norm(name='g_bn2')
-        # self.g_bn3 = utils.batch_norm(name='g_bn3')
+        self.d_bn1 = utils.batch_norm(name='d_bn1')
+        self.d_bn2 = utils.batch_norm(name='d_bn2')
+        self.d_bn3 = utils.batch_norm(name='d_bn3')
 
         self.g_opt = None
 
@@ -63,6 +54,23 @@ class NN(object):
                 costs.append(params.weight_decay_rate * tf.nn.l2_loss(var))
         return tf.add_n(costs)
 
+    def deconv_res_block(self, name, x, h, w, cout):
+        with tf.variable_scope(name):
+            bn1 = utils.batch_norm(name=name + 'bn1')
+            x = self.deconv2d(x, [params.bs, h, w, cout], k_h=3, k_w=3, name=name + '.1')
+            x = tf.nn.relu(bn1(x))
+            bn2 = utils.batch_norm(name=name + 'bn2')
+            x = self.conv2d(x, cout, d_h=1, d_w=1, name='conv') + x
+            x = tf.nn.relu(bn2(x))
+        return x
+
+    def conv_relu_block(self, name, x, cout):
+        with tf.variable_scope(name):
+            x = self.conv2d(x, cout, name=name)
+            bn = utils.batch_norm(name=name + 'bn')
+            x = utils.lrelu(bn(x))
+        return x
+
     def generator(self, x, reuse=False):
         with tf.variable_scope("generator") as scope:
             if reuse:
@@ -81,45 +89,37 @@ class NN(object):
 
             h = self.linear(z, self.gf_dim * 4 * s_h16 * s_w16, 'affine0')
             h = tf.nn.relu(h)
-            h = self.linear(h, self.gf_dim * 32 * s_h16 * s_w16, 'affine1')
-
-            # reshape
-            h = tf.reshape(h, [-1, s_h16, s_w16, self.gf_dim * 32])
-            h = tf.nn.relu(tf.layers.batch_normalization(h))
-            h = self.deconv2d(h, [params.bs, s_h8, s_w8, self.gf_dim * 4], k_h=3, k_w=3, name='g_h1')
-            h = tf.nn.relu(tf.layers.batch_normalization(h))
-            h = self.deconv2d(h, [params.bs, s_h4, s_w4, self.gf_dim * 2], k_h=5, k_w=5, name='g_h2')
-            h = tf.nn.relu(tf.layers.batch_normalization(h))
-            h = self.deconv2d(h, [params.bs, s_h2, s_w2, self.gf_dim * 1], k_h=3, k_w=3, name='g_h3')
-            h = tf.nn.relu(tf.layers.batch_normalization(h))
+            h = self.linear(h, self.gf_dim * 8 * s_h16 * s_w16, 'affine1')
+            h = tf.nn.relu(tf.reshape(h, [-1, s_h16, s_w16, self.gf_dim * 8]))
+            h = self.deconv_res_block('deconv0', h, s_h8, s_w8, self.gf_dim * 4)
+            h = self.deconv_res_block('deconv1', h, s_h4, s_w4, self.gf_dim * 2)
+            h = self.deconv_res_block('deconv2', h, s_h2, s_w2, self.gf_dim * 1)
             h = self.deconv2d(h, [params.bs, s_h, s_w, 1], k_h=3, k_w=3, name='g_h4')
             h = tf.nn.relu(h)
-
             return h
 
     def decoder(self, im, reuse=False):
         with tf.variable_scope("decoder") as scope:
             if reuse:
                 scope.reuse_variables()
-            h0 = utils.lrelu(self.conv2d(im, self.df_dim, name='de_h0_conv'))
-            # change batch norm to tf.layers
-            # addresidual connections
-            h1 = utils.lrelu(tf.layers.batch_normalization(self.conv2d(h0, self.df_dim * 2, name='de_h1_conv')))
-            h2 = utils.lrelu(tf.layers.batch_normalization(self.conv2d(h1, self.df_dim * 4, name='de_h2_conv')))
-            h3 = utils.lrelu(tf.layers.batch_normalization(self.conv2d(h2, self.df_dim * 8, name='de_h3_conv')))
-            h4 = self.linear(tf.reshape(h3, [params.bs, -1]), self.x_dim, 'de_h4_lin')
-            return h4
+            h = self.conv_relu_block('conv0', im, self.df_dim)
+            h = self.conv_relu_block('conv1', h, self.df_dim * 2)
+            h = self.conv_relu_block('conv2', h, self.df_dim * 4)
+            h = self.conv_relu_block('conv3', h, self.df_dim * 8)
+            h = self.linear(tf.reshape(h, [params.bs, -1]), self.x_dim, 'de_h4_lin')
+            return h
 
     def discriminator(self, im, reuse=False):
         with tf.variable_scope("discriminator") as scope:
             if reuse:
                 scope.reuse_variables()
-            h0 = utils.lrelu(self.conv2d(im, self.df_dim, name='d_h0_conv'))
-            h1 = utils.lrelu(tf.layers.batch_normalization(self.conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
-            h2 = utils.lrelu(tf.layers.batch_normalization(self.conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
-            h3 = utils.lrelu(tf.layers.batch_normalization(self.conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
-            h4 = self.linear(tf.reshape(h3, [params.bs, -1]), 1, 'd_h4_lin')
-            return h4, tf.reshape(h3, [params.bs, -1])
+            h = self.conv_relu_block('conv0', im, self.df_dim)
+            h = self.conv_relu_block('conv1', h, self.df_dim * 2)
+            h = self.conv_relu_block('conv2', h, self.df_dim * 4)
+            feats = h
+            h = self.conv_relu_block('conv3', h, self.df_dim * 8)
+            h = self.linear(tf.reshape(h, [params.bs, -1]), self.x_dim, 'de_h4_lin')
+            return h, tf.reshape(feats, [params.bs, -1])
 
     def backward(self, loss, scopes, opt=None):
         # create an optimizer
@@ -147,9 +147,7 @@ class NN(object):
 
         d_g, disc_feats = self.discriminator(fake_im, reuse=True)
 
-        gan_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_g, labels=tf.ones_like(d_g)))
-
-        gan_loss = params.gan_weight * gan_loss
+        gan_loss = params.gan_weight * tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_g, labels=tf.ones_like(d_g)))
 
         # order loss
         # x_dists = utils.distance_mat(x)
