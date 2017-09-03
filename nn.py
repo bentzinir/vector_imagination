@@ -95,7 +95,7 @@ class NN(object):
             h = self.deconv_res_block('deconv1', h, s_h4, s_w4, self.gf_dim * 2)
             h = self.deconv_res_block('deconv2', h, s_h2, s_w2, self.gf_dim * 1)
             h = self.deconv2d(h, [params.bs, s_h, s_w, 1], k_h=3, k_w=3, name='g_h4')
-            h = tf.nn.relu(h)
+            h = tf.nn.tanh(h)
             return h
 
     def decoder(self, im, reuse=False):
@@ -149,18 +149,20 @@ class NN(object):
 
         gan_loss = params.gan_weight * tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_g, labels=tf.ones_like(d_g)))
 
-        # order loss
+        loss = gan_loss
+
+        # # order loss
         # x_dists = utils.distance_mat(x)
         #
-        # feats_dist = utils.distance_mat(disc_feats)
-
-        # x_order = x_dists / tf.reduce_max(x_dists)
+        # feat_dists = utils.distance_mat(disc_feats)
         #
-        # feats_order = feats_dist / tf.reduce_max(feats_dist)
-
-        # order_loss = params.order_weight * tf.reduce_mean(tf.nn.l2_loss(x_order - feats_order))
-
-        loss = gan_loss# + order_loss
+        # x_dists = x_dists / tf.reduce_max(x_dists)
+        #
+        # feat_dists = feat_dists / tf.reduce_max(feat_dists)
+        #
+        # order_loss = params.order_weight * tf.reduce_mean(tf.square(10 * x_dists - feat_dists))
+        #
+        # loss += order_loss
 
         apply_grads, grad_norm, _, self.g_opt = self.backward(loss, ["generator"], self.g_opt)
 

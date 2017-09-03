@@ -17,8 +17,8 @@ class MovingBox(object):
 
         self.vector_dim = 2+1
 
-        # self.render_image = self.render_gauss_image
-        self.render_image = self.render_square_image
+        self.render_image = self.render_gauss_image
+        # self.render_image = self.render_square_image
 
         self.averaging_factor = 0.5
 

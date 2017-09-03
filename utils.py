@@ -29,8 +29,7 @@ def distance_mat(x):
     bs = x.get_shape().as_list()[0]
     m1 = tf.tile(tf.expand_dims(x, axis=1), [1, bs, 1])
     m2 = tf.tile(tf.expand_dims(x, axis=0), [bs, 1, 1])
-
-    return tf.reduce_mean((m1 - m2)**2, axis=2)
+    return tf.sqrt(tf.reduce_sum((m1 - m2)**2, axis=2) + 1e-4)
 
 
 def square_images_distance(images):

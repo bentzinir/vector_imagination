@@ -37,10 +37,10 @@ for i in range(params.n_train_iters):
 
     data = sess.run([x_im, fake_im, ref_im, x])
 
-    if i % params.display_interval == 0 or not params.train_mode:
+    if i % params.display_interval == 0 or params.mode == 'test':
         env.update_figure(x_im=data[0][0], x_fake=data[1][0], x_expert=data[2][0])
 
-    if params.train_mode:
+    if params.mode == 'train':
         # train discriminator
         for _ in range(params.n_dis_iters):
             run_vals_d = sess.run([apply_grads_d, grad_norm_d, d_losses])
@@ -57,6 +57,7 @@ for i in range(params.n_train_iters):
             env.update_stats(i, {'loss_d': run_vals_d[2],
                                  'grad_d': run_vals_d[1],
                                  'loss_g': run_vals_g[2],
+                                 # 'loss_order': run_vals_g[3],
                                  'grad_g': run_vals_g[1],
                                  # 'order_loss': run_vals_g[3],
                                  # 'grads_ae': run_vals_ae[5],
