@@ -1,7 +1,6 @@
 import tensorflow as tf
 from nn import NN
 from moving_box import MovingBox
-import time
 import params
 
 env = MovingBox()
@@ -21,17 +20,17 @@ d_losses, apply_grads_d, grad_norm_d = conv_ae.train_discriminator(x, ref_im)
 
 g_losses, apply_grads_g, grad_norm_g, fake_im = conv_ae.train_generator(x)
 
-dec_losses, im_fake, apply_grads_ae, grad_norm_ae = conv_ae.train_decoder(x, x_im)
+dec_losses, im_fake, apply_grads_ae, grad_norm_ae = conv_ae.train_decoder(x)
 
-saver = tf.train.Saver()
 init_graph = tf.global_variables_initializer()
 sess = tf.Session()
 tf.train.start_queue_runners(sess=sess)
+env.saver = tf.train.Saver()
 
 if params.model is None:
     sess.run(init_graph)
 else:
-    saver.restore(sess, params.model)
+    env.load(sess)
 
 for i in range(params.n_train_iters):
 
@@ -51,20 +50,14 @@ for i in range(params.n_train_iters):
 
         # train decoder
         for _ in range(params.n_dec_iters):
-            run_vals_ae = sess.run([apply_grads_ae, grad_norm_ae]+dec_losses)
+            run_vals_dec = sess.run([apply_grads_ae, grad_norm_ae] + dec_losses)
 
         if i % params.display_interval == 0:
+            env.save(sess, i)
             env.update_stats(i, {'loss_d': run_vals_d[2],
                                  'grad_d': run_vals_d[1],
                                  'loss_g': run_vals_g[2],
-                                 # 'loss_order': run_vals_g[3],
                                  'grad_g': run_vals_g[1],
-                                 # 'order_loss': run_vals_g[3],
-                                 # 'grads_ae': run_vals_ae[5],
-                                 # 'loss_rec': run_vals_ae[6],
-                                 # 'loss_tv': run_vals_ae[2],
-                                 # 'loss_order': run_vals_ae[3],
+                                 'loss_dec': run_vals_dec[2],
+                                 'grad_dec': run_vals_dec[1],
                                  })
-
-            fname = 'snapshots/' + time.strftime("%Y-%m-%d-%H-%M-") + ('%0.6d.sn' % i)
-            saver.save(sess, fname)

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tqdm import tqdm
 import params
+import os
 
 
 class MovingBox(object):
@@ -31,6 +32,7 @@ class MovingBox(object):
 
         if params.create_data:
             self.create_data(params.fname, params.n_examples)
+
 
     def update_obj(self, obj, val):
         val = np.squeeze(val)
@@ -121,3 +123,20 @@ class MovingBox(object):
         x_batch, x_im_batch, ref_im_batch = tf.train.shuffle_batch(
             [x, x_im, ref_im], batch_size=params.bs, capacity=2000, min_after_dequeue=1000)
         return x_batch, x_im_batch, ref_im_batch
+
+    def save(self, sess, step):
+        if params.model is None:
+            params.model = params.checkpoints_dir + time.strftime("%Y-%m-%d-%H-%M")
+            os.makedirs(params.model)
+            print('Created model: ' + params.model)
+        self.saver.save(sess, params.model + '/model', global_step=step)
+
+    def load(self, sess):
+        ckpt = tf.train.get_checkpoint_state(params.model)
+        if ckpt and ckpt.model_checkpoint_path:
+            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
+            self.saver.restore(sess, os.path.join(params.model, ckpt_name))
+            print('loaded model: ' + params.model)
+        else:
+            print('unable to load model: ' + params.model)
+            sys.exit(0)
