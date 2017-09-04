@@ -93,6 +93,7 @@ class MovingBox(object):
         writer = tf.python_io.TFRecordWriter(fname)
         for _ in tqdm(range(n_examples)):
             x, x_im, ref_im = self.create_example()
+            # create protobuf object
             example = tf.train.Example(features=tf.train.Features(
                     feature={
                         'x': tf.train.Feature(float_list=tf.train.FloatList(value=x.tolist())),
@@ -100,6 +101,7 @@ class MovingBox(object):
                         'x_im': tf.train.Feature(float_list=tf.train.FloatList(value=x_im.flatten().tolist())),
                     }
             ))
+            # serialize protobuf object before writing to disk
             serialized = example.SerializeToString()
             writer.write(serialized)
 
@@ -107,17 +109,15 @@ class MovingBox(object):
         filename_queue = tf.train.string_input_producer([filename], num_epochs=None)
         reader = tf.TFRecordReader()
         _, serialized_example = reader.read(filename_queue)
-        features = tf.parse_single_example(
-            serialized_example,
-            features={
-                'x': tf.FixedLenFeature([3], tf.float32),
-                'x_im': tf.FixedLenFeature([self.im_size, self.im_size, 1], tf.float32),
-                'ref_im': tf.FixedLenFeature([self.im_size, self.im_size, 1], tf.float32),
-            })
+        features = tf.parse_single_example(serialized_example,
+                                   features={'x': tf.FixedLenFeature([3], tf.float32),
+                                             'x_im': tf.FixedLenFeature([self.im_size, self.im_size, 1], tf.float32),
+                                             'ref_im': tf.FixedLenFeature([self.im_size, self.im_size, 1], tf.float32),
+                                            })
         x = features['x']
         x_im = features['x_im']
         ref_im = features['ref_im']
 
         x_batch, x_im_batch, ref_im_batch = tf.train.shuffle_batch(
-            [x, x_im, ref_im], batch_size=params.bs, capacity=2000, min_after_dequeue=1000)
+            [x, x_im, ref_im], batch_size=params.bs, capacity=params.capacity, min_after_dequeue=params.min_after_deque)
         return x_batch, x_im_batch, ref_im_batch

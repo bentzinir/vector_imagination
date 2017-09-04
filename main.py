@@ -26,7 +26,8 @@ dec_losses, im_fake, apply_grads_ae, grad_norm_ae = conv_ae.train_decoder(x, x_i
 saver = tf.train.Saver()
 init_graph = tf.global_variables_initializer()
 sess = tf.Session()
-tf.train.start_queue_runners(sess=sess)
+coord = tf.train.Coordinator()
+threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
 if params.model is None:
     sess.run(init_graph)
@@ -68,3 +69,7 @@ for i in range(params.n_train_iters):
 
             fname = 'snapshots/' + time.strftime("%Y-%m-%d-%H-%M-") + ('%0.6d.sn' % i)
             saver.save(sess, fname)
+
+coord.request_stop()
+coord.join(threads)
+sess.close()
