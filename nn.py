@@ -12,16 +12,9 @@ class NN(object):
 
         self.gf_dim = 8
         self.df_dim = 32
-
         self.gfc_dim = 1024
         self.dfc_dim = 1024
-
         self.x_dim = x_dim
-
-        self.d_bn1 = utils.batch_norm(name='d_bn1')
-        self.d_bn2 = utils.batch_norm(name='d_bn2')
-        self.d_bn3 = utils.batch_norm(name='d_bn3')
-
         self.g_opt = None
 
     def linear(self, input_, output_size, scope=None, stddev=0.02, bias_start=0.0):
@@ -188,33 +181,17 @@ class NN(object):
 
         return loss, apply_grads, grad_norm
 
-    def train_decoder(self, x, x_im):
+    def train_decoder(self, x):
 
         im_fake = self.generator(x, reuse=True)
 
-        _, disc_feats = self.discriminator(im_fake, reuse=True)
+        x_rec = self.decoder(im_fake)
 
-        x_dists = utils.distance_mat(x)
+        rec_loss = params.dec_weight * tf.reduce_mean(tf.square(x_rec - x))
 
-        feats_dist = utils.distance_mat(disc_feats)
+        loss = rec_loss
 
-        x_order = x_dists / tf.reduce_max(x_dists)
-
-        feats_order = feats_dist / tf.reduce_max(feats_dist)
-
-        order_loss = params.order_weight * tf.reduce_mean(tf.nn.l2_loss(x_order - feats_order))
-
-        # x_rec = self.decoder(im_fake)
-        #
-        # rec_loss = tf.reduce_mean(tf.square(x_rec - x))
-        #
-        # tv_loss = params.tv_weight * tf.reduce_mean(tf.image.total_variation(im_fake))
-        #
-        # supervised_loss = tf.reduce_mean(tf.square(x_im - im_fake))
-
-        loss = order_loss
-
-        # loss += self._decay("decoder")
+        loss += self._decay("decoder")
 
         apply_grads, grad_norm, _, self.g_opt = self.backward(loss, ["generator", "decoder"], self.g_opt)
 
